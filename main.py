@@ -4,11 +4,12 @@ import pandas as pd
 import numpy as np
 from transformers import pipeline
 
-# Cargar modelo de sentimientos (sin usar torch directamente)
+# Cargar modelo de sentimientos usando cache
 @st.cache_resource
 def cargar_modelo_sentimientos():
     return pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
 
+# Inicializar el modelo una vez
 sentiment_pipeline = cargar_modelo_sentimientos()
 
 # Subir archivo CSV
@@ -20,7 +21,7 @@ if archivo:
     st.success("✅ Archivo cargado correctamente.")
     st.write(df.head())
 
-    # Selección de módulo desde la barra lateral
+    # Barra lateral
     opcion = st.sidebar.selectbox("Selecciona una opción:", [
         "Análisis de Sentimientos por Docente",
         "Frases de riesgo y toxicidad"
@@ -31,13 +32,12 @@ if archivo:
     # --------------------------------------
     if opcion == "Análisis de Sentimientos por Docente":
         st.header("📈 Análisis de Sentimientos por Docente")
-        rango_inicio = st.number_input("ID inicial del docente", min_value=0, step=1)
-        rango_fin = st.number_input("ID final del docente", min_value=0, step=1)
+        rango_inicio = st.number_input("ID inicial del docente", min_value=0, step=1, key="inicio")
+        rango_fin = st.number_input("ID final del docente", min_value=0, step=1, key="fin")
 
         if rango_fin > rango_inicio:
             df = df[(df['id_docente'] >= rango_inicio) & (df['id_docente'] <= rango_fin)]
 
-            # Limpiar comentarios
             comentarios_invalidos = ['.', '-', '', ' ']
             df['comentario_valido'] = ~df['comentarios'].astype(str).str.strip().isin(comentarios_invalidos)
             df_validos = df[df['comentario_valido']].copy()
@@ -51,10 +51,9 @@ if archivo:
             )
             df_validos['comentario_limpio'] = df_validos['comentario_limpio'].str[:510]
 
-            with st.spinner("Analizando sentimientos..."):
+            with st.spinner("🧠 Analizando sentimientos... puede tardar unos minutos."):
                 predicciones = sentiment_pipeline(df_validos['comentario_limpio'].tolist())
 
-            # Mapear a etiquetas
             def mapear_sentimiento(label):
                 estrellas = int(label.split()[0])
                 if estrellas <= 2:
@@ -67,7 +66,6 @@ if archivo:
             df_validos['sentimiento'] = [mapear_sentimiento(p['label']) for p in predicciones]
 
             resumen_list = []
-
             for docente_id in sorted(df['id_docente'].unique()):
                 subset = df[df['id_docente'] == docente_id]
                 subset_validos = df_validos[df_validos['id_docente'] == docente_id]

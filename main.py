@@ -15,7 +15,22 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "transformers"])
     from transformers import pipeline
     
+import streamlit as st
+import pandas as pd
+from transformers import pipeline
+import torch
 
+# Configuración inicial
+st.set_page_config(page_title="Análisis de Comentarios Docentes", layout="wide")
+st.title("🧑‍🏫 Análisis de Comentarios Docentes")
+
+# Cargar CSV
+st.subheader("📤 Cargar archivo CSV")
+uploaded_file = st.file_uploader("Carga el archivo con los comentarios estudiantiles", type="csv")
+
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+   
 # Configuración inicial
 st.set_page_config(page_title="Análisis Docente", layout="wide")
 st.title("📊 Análisis de Comentarios Docentes")

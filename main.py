@@ -7,7 +7,7 @@ st.set_page_config(page_title="🔍 Comentarios de Riesgo, toxicidad y Búsqueda
 st.title("🛑 Detección de Comentarios de Riesgo + Búsqueda de Palabras Clave")
 
 # Cargar archivo
-archivo = st.sidebar.file_uploader("📂 Sube un archivo CSV con las columnas: id_docente, asignatura, comentarios", type=["csv"])
+archivo = st.sidebar.file_uploader("📂 Sube un archivo CSV con las columnas: id_docente, id_asignatura, comentarios", type=["csv"])
 
 # Palabras clave por categoría
 palabras_riesgo = {
@@ -39,8 +39,8 @@ def detectar_categoria(texto):
 if archivo is not None:
     df = pd.read_csv(archivo)
     
-    if not {"id_docente", "comentarios", "asignatura"}.issubset(df.columns):
-        st.error("❌ El archivo debe tener las columnas: id_docente, comentarios, asignatura.")
+    if not {"id_docente", "comentarios", "id_asignatura"}.issubset(df.columns):
+        st.error("❌ El archivo debe tener las columnas: id_docente, comentarios, id_asignatura.")
     else:
         # Normalizar
         df["comentarios"] = df["comentarios"].astype(str).str.lower().str.strip()
@@ -53,7 +53,7 @@ if archivo is not None:
 
         st.subheader("🧠 Comentarios con palabras de riesgo detectadas automáticamente")
         st.dataframe(
-            df_riesgo[["id_docente", "asignatura", "comentarios", "categorias_riesgo"]],
+            df_riesgo[["id_docente", "id_asignatura", "comentarios", "categorias_riesgo"]],
             use_container_width=True
         )
 
@@ -69,7 +69,7 @@ if archivo is not None:
                 st.warning(f"❌ No se encontró la palabra '{palabra_riesgo}' en comentarios con riesgo.")
             else:
                 st.success(f"✅ Se encontraron {len(resultados_riesgo)} coincidencias.")
-                st.dataframe(resultados_riesgo[["id_docente", "asignatura", "comentarios", "categorias_riesgo"]],
+                st.dataframe(resultados_riesgo[["id_docente", "id_asignatura", "comentarios", "categorias_riesgo"]],
                              use_container_width=True)
 
         # Búsqueda general
@@ -85,7 +85,7 @@ if archivo is not None:
                 st.warning(f"❌ No se encontró la palabra '{palabra_general}' en ningún comentario.")
             else:
                 st.success(f"✅ Se encontraron {len(df_coincidencias)} coincidencias.")
-                st.dataframe(df_coincidencias[["id_docente", "asignatura", "comentarios"]],
+                st.dataframe(df_coincidencias[["id_docente", "id_asignatura", "comentarios"]],
                              use_container_width=True)
 
 else:

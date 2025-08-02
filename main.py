@@ -29,11 +29,11 @@ def mapear_sentimiento(label):
 # ---- Subida de archivo ----
 st.sidebar.title("📁 Cargar archivo")
 archivo = st.sidebar.file_uploader("Sube un archivo CSV con comentarios", type=["csv"])
+
 if archivo is not None:
     df = pd.read_csv(archivo)
 
     menu = st.sidebar.radio("Selecciona una sección", ["📊 Por Departamento", "🧨 Frases de Riesgo"])
-
     sentiment_pipeline = cargar_modelo()
 
     # ---- SECCIÓN 1: Por Departamento ----
@@ -51,8 +51,8 @@ if archivo is not None:
         df_rango['comentario_valido'] = ~df_rango['comentarios'].astype(str).str.strip().isin(comentarios_invalidos)
         df_validos = df_rango[df_rango['comentario_valido']].copy()
 
-        # Limpieza y truncado
-        df_validos['comentario_limpio'] = df_validos['comentarios'].astype(str).str.strip().str.replace(r"[\.\-]", "", regex=True).str.lower().str[:510]
+        df_validos['comentario_limpio'] = df_validos['comentarios'].astype(str).str.strip() \
+            .str.replace(r"[\.\-]", "", regex=True).str.lower().str[:510]
 
         with st.spinner("🧠 Analizando sentimientos..."):
             predicciones = sentiment_pipeline(df_validos['comentario_limpio'].tolist())
@@ -96,7 +96,6 @@ if archivo is not None:
     # ---- SECCIÓN 2: Frases de Riesgo ----
     elif menu == "🧨 Frases de Riesgo":
         st.title("🧨 Búsqueda de frases de riesgo o toxicidad")
-
         palabra = st.text_input("🔍 Escribe una palabra para rastrear").strip().lower()
 
         if palabra:
@@ -120,6 +119,10 @@ if archivo is not None:
                 })
 
                 st.dataframe(resumen_palabra.sort_values(by=f"coincidencias_de_{palabra}", ascending=False))
+
+                csv_palabra = resumen_palabra.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Descargar coincidencias en CSV", csv_palabra,
+                                   file_name=f"coincidencias_{palabra}.csv", mime='text/csv')
 
 else:
     st.warning("⚠️ Por favor, sube un archivo CSV con las columnas `id_docente`, `id_asignatura` y `comentarios`.")

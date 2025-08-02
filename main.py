@@ -1,4 +1,10 @@
 # app.py
+import streamlit as st
+import pandas as pd
+import numpy as np
+import torch
+from transformers import pipeline
+
 import subprocess
 import sys
 
@@ -9,11 +15,6 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "transformers"])
     from transformers import pipeline
     
-import streamlit as st
-import pandas as pd
-import numpy as np
-from transformers import pipeline
-import torch
 
 # Configuración inicial
 st.set_page_config(page_title="Análisis Docente", layout="wide")

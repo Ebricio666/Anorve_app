@@ -1,5 +1,14 @@
 # app.py
+import subprocess
+import sys
 
+# Instalar transformers si no está disponible
+try:
+    from transformers import pipeline
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "transformers"])
+    from transformers import pipeline
+    
 import streamlit as st
 import pandas as pd
 import numpy as np

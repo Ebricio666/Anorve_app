@@ -1,131 +1,92 @@
+# main.py
 import streamlit as st
 import pandas as pd
-import unicodedata
-import re
 
-st.set_page_config(page_title="Frases de Riesgo Docente", layout="wide")
+# Configuración inicial
+st.set_page_config(page_title="🔍 Comentarios de Riesgo, toxicidad y Búsqueda personalizada", layout="wide")
+st.title("🛑 Detección de Comentarios de Riesgo + Búsqueda de Palabras Clave")
 
-# ---- Diccionario de frases de riesgo ----
+# Cargar archivo
+archivo = st.sidebar.file_uploader("📂 Sube un archivo CSV con las columnas: id_docente, asignatura, comentarios", type=["csv"])
+
+# Palabras clave por categoría
 palabras_riesgo = {
     "riesgo_psicosocial": [
-        "estres", "ansiedad", "depresion", "cansancio", "agobio",
-        "presion", "burnout", "tension", "desgaste", "agotamiento"
+        "estrés", "ansiedad", "depresión", "cansancio", "agobio",
+        "presión", "burnout", "tensión", "desgaste", "agotamiento"
     ],
     "violencia_acoso": [
-        "acoso", "hostigamiento", "intimidacion", "amenaza", "agresion",
-        "violencia", "golpear", "forzar", "manoseo", "imposicion"
+        "acoso", "hostigamiento", "intimidación", "amenaza", "agresión",
+        "violencia", "golpear", "forzar", "manoseo", "imposición"
     ],
     "maltrato_verbal_fisico": [
         "gritar", "insultar", "ofender", "ridiculizar", "menospreciar",
         "burlarse", "humillar", "descalificar", "pegar", "empujar"
     ],
-    "vulnerabilidad_discriminacion": [
-        "discriminacion", "exclusion", "racismo", "clasismo", "marginacion",
+    "vulnerabilidad_discriminación": [
+        "discriminación", "exclusión", "racismo", "clasismo", "marginación",
         "desigualdad", "inequidad", "vulnerable", "preferencia", "estigmatizar"
     ]
 }
 
-# ---- Función para normalizar texto ----
-def normalizar(texto):
-    texto = unicodedata.normalize('NFKD', texto)
-    texto = "".join([c for c in texto if not unicodedata.combining(c)])
-    return texto.lower()
-
-# ---- Función para detectar categorías ----
 def detectar_categoria(texto):
-    texto = normalizar(texto)
     categorias_detectadas = set()
     for categoria, palabras in palabras_riesgo.items():
-        for palabra in palabras:
-            if re.search(rf'\b{palabra}\b', texto):
-                categorias_detectadas.add(categoria)
-                break  # no sigas buscando más palabras de esta categoría
+        if any(palabra in texto for palabra in palabras):
+            categorias_detectadas.add(categoria)
     return list(categorias_detectadas)
-
-# ---- Cargar archivo ----
-st.sidebar.title("📁 Cargar archivo")
-archivo = st.sidebar.file_uploader("Sube un archivo CSV con comentarios", type=["csv"])
 
 if archivo is not None:
     df = pd.read_csv(archivo)
+    
+    if not {"id_docente", "comentarios", "asignatura"}.issubset(df.columns):
+        st.error("❌ El archivo debe tener las columnas: id_docente, comentarios, asignatura.")
+    else:
+        # Normalizar
+        df["comentarios"] = df["comentarios"].astype(str).str.lower().str.strip()
+        df["comentario_valido"] = ~df["comentarios"].isin(["", ".", "-", " "])
+        df_validos = df[df["comentario_valido"]].copy()
 
-    if 'id_docente' not in df.columns or 'comentarios' not in df.columns:
-        st.error("❌ El archivo debe contener las columnas 'id_docente' y 'comentarios'.")
-        st.stop()
+        # Detectar riesgo
+        df_validos["categorias_riesgo"] = df_validos["comentarios"].apply(detectar_categoria)
+        df_riesgo = df_validos[df_validos["categorias_riesgo"].apply(lambda x: len(x) > 0)].copy()
 
-    df['comentarios'] = df['comentarios'].astype(str).str.strip()
-    df['comentario_valido'] = df['comentarios'].str.len() > 2
-    df_validos = df[df['comentario_valido']].copy()
+        st.subheader("🧠 Comentarios con palabras de riesgo detectadas automáticamente")
+        st.dataframe(
+            df_riesgo[["id_docente", "asignatura", "comentarios", "categorias_riesgo"]],
+            use_container_width=True
+        )
 
-    df_validos['categorias_riesgo'] = df_validos['comentarios'].apply(detectar_categoria)
-    df_riesgo = df_validos[df_validos['categorias_riesgo'].apply(lambda x: len(x) > 0)].copy()
+        # Búsqueda personalizada
+        st.subheader("🔍 Búsqueda personalizada en comentarios con riesgo")
+        palabra_riesgo = st.text_input("🔍 Escribe una palabra para buscar entre los comentarios con riesgo").strip().lower()
 
-    st.title("🧨 Análisis de Frases de Riesgo y Palabras Clave")
-    tab1, tab2, tab3 = st.tabs(["🧨 Comentarios con Riesgo", "🔍 Palabra Clave en Comentarios con Riesgo", "📢 Palabra Clave en Todos los Comentarios"])
+        if palabra_riesgo:
+            df_riesgo["coincide_busqueda"] = df_riesgo["comentarios"].str.contains(palabra_riesgo, case=False, na=False)
+            resultados_riesgo = df_riesgo[df_riesgo["coincide_busqueda"]].copy()
 
-    with tab1:
-        st.subheader("🧨 Comentarios con riesgo por docente")
-        agrupado = df_riesgo.groupby('id_docente').agg({
-            'comentarios': list,
-            'categorias_riesgo': lambda x: sorted(set(cat for sublist in x for cat in sublist)),
-            'comentario_valido': 'count'
-        }).reset_index()
-
-        agrupado = agrupado.rename(columns={
-            'comentario_valido': 'comentarios_riesgo',
-            'comentarios': 'comentarios_detectados',
-            'categorias_riesgo': 'categorias_identificadas'
-        })
-
-        st.dataframe(agrupado.sort_values(by='comentarios_riesgo', ascending=False), use_container_width=True)
-
-    with tab2:
-        palabra = st.text_input("🔍 Escribe una palabra clave para buscar en comentarios con riesgo").strip().lower()
-        if palabra:
-            palabra_norm = normalizar(palabra)
-            df_riesgo['coincide_busqueda'] = df_riesgo['comentarios'].apply(lambda x: bool(re.search(rf'\b{palabra_norm}\b', normalizar(x))))
-            df_coincidencia = df_riesgo[df_riesgo['coincide_busqueda']].copy()
-
-            if df_coincidencia.empty:
-                st.error(f"No se encontró la palabra '{palabra}' en comentarios con riesgo.")
+            if resultados_riesgo.empty:
+                st.warning(f"❌ No se encontró la palabra '{palabra_riesgo}' en comentarios con riesgo.")
             else:
-                resumen_palabra = df_coincidencia.groupby('id_docente').agg({
-                    'comentarios': list,
-                    'categorias_riesgo': lambda x: sorted(set(cat for sublist in x for cat in sublist)),
-                    'coincide_busqueda': 'count'
-                }).reset_index()
+                st.success(f"✅ Se encontraron {len(resultados_riesgo)} coincidencias.")
+                st.dataframe(resultados_riesgo[["id_docente", "asignatura", "comentarios", "categorias_riesgo"]],
+                             use_container_width=True)
 
-                resumen_palabra = resumen_palabra.rename(columns={
-                    'coincide_busqueda': f"coincidencias_de_{palabra}",
-                    'comentarios': 'comentarios_donde_aparece',
-                    'categorias_riesgo': 'categorias_asociadas'
-                })
+        # Búsqueda general
+        st.subheader("📌 Búsqueda en todos los comentarios")
+        palabra_general = st.text_input("📌 Palabra a buscar en todos los comentarios").strip().lower()
 
-                st.success(f"Se encontraron {len(df_coincidencia)} comentarios con la palabra '{palabra}'.")
-                st.dataframe(resumen_palabra.sort_values(by=f"coincidencias_de_{palabra}", ascending=False), use_container_width=True)
-
-    with tab3:
-        palabra_general = st.text_input("📢 Escribe una palabra para buscar en todos los comentarios").strip().lower()
         if palabra_general:
-            palabra_norm = normalizar(palabra_general)
-            df['coincide_palabra'] = df['comentarios'].apply(lambda x: bool(re.search(rf'\b{palabra_norm}\b', normalizar(x))))
-            df_coincidencias = df[df['coincide_palabra']].copy()
+            df["comentarios"] = df["comentarios"].astype(str)
+            df["coincide_palabra"] = df["comentarios"].str.contains(palabra_general, case=False, na=False)
+            df_coincidencias = df[df["coincide_palabra"]].copy()
 
             if df_coincidencias.empty:
-                st.error(f"No se encontró la palabra '{palabra_general}' en ningún comentario.")
+                st.warning(f"❌ No se encontró la palabra '{palabra_general}' en ningún comentario.")
             else:
-                resumen_palabra_general = df_coincidencias.groupby('id_docente').agg({
-                    'comentarios': list,
-                    'coincide_palabra': 'count'
-                }).reset_index()
-
-                resumen_palabra_general = resumen_palabra_general.rename(columns={
-                    'coincide_palabra': f"coincidencias_de_{palabra_general}",
-                    'comentarios': 'comentarios_donde_aparece'
-                })
-
-                st.success(f"Se encontraron comentarios con la palabra '{palabra_general}'.")
-                st.dataframe(resumen_palabra_general.sort_values(by=f"coincidencias_de_{palabra_general}", ascending=False), use_container_width=True)
+                st.success(f"✅ Se encontraron {len(df_coincidencias)} coincidencias.")
+                st.dataframe(df_coincidencias[["id_docente", "asignatura", "comentarios"]],
+                             use_container_width=True)
 
 else:
-    st.warning("⚠️ Por favor, sube un archivo CSV con las columnas `id_docente` y `comentarios`.")
+    st.info("💡 Sube un archivo CSV para comenzar.")
